@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=7,IE=9">
+<title>Oxnard Local Coastal Plan</title>
+
+<link rel="stylesheet" href="http://js.arcgis.com/3.9/js/dojo/dijit/themes/claro/claro.css">
+<link rel="stylesheet" href="http://js.arcgis.com/3.9/js/esri/css/esri.css">
+<link rel="stylesheet" type="text/css" href="http://mesa/general/agsjs/src/agsjs/css/agsjs.css" />
+
+<style>
+    html, body, #map {
+        height: 100%;
+        margin: 0;
+        width: 100%;
+        padding: 0;
+    }
+
+    h3 { margin: 0 0 5px 0; border-bottom: 1px solid #444; text-align: center; }
+
+    .shadow {
+        -moz-box-shadow: 0 0 5px #888;
+        -webkit-box-shadow: 0 0 5px #888;
+        box-shadow: 0 0 5px #888;
+    }
+
+    #legendWindow { 
+        background: #fff;
+        bottom: 30px;
+        color: #444;
+        position: absolute;
+        font-family:Trebuchet MS;
+        height: 465px;
+        left: 18px;
+        margin: 5px;
+        padding: 10px;
+        top: 90px;
+        width: 220px;
+        z-index: 40;
+        overflow:auto;
+    }
+
+    progress:not([value]){
+        -webkit-appearance: progress-bar;
+        box-sizing: border-box;
+        display: inline-block;
+        height: 1em;
+        width: 10em;
+        vertical-align: -.02em;
+    }
+
+    .esriPopup  img{
+        max-width: 200px;
+        max-height: 133px;
+        border: solid 2px #000;
+    }
+
+    #titlePane{
+        width:240px;
+    }
+    .claro .dijitTitlePaneTitle {
+        background: #FFFFFF;
+        font-weight:600;
+        font-family:Trebuchet MS;
+        border:solid 1px #29201A;
+    }
+    .claro .dijitTitlePaneTitleHover {
+        background:#94E9FF;
+    }
+    .claro .dijitTitlePaneTitleActive {
+        background:#62A2B8;
+    }
+    .claro .dijitTitlePaneContentOuter {
+        border-right: solid 2px #808775 !important;
+        border-bottom: solid 2px #808775 !important;
+        border-left: solid 2px #808775 !important;
+    }
+
+
+</style>
+
+<script type="text/javascript">
+    var djConfig = {
+        parseOnLoad: true,
+        packages: [{
+            "name": "agsjs",
+            "location": "http://maps.ci.oxnard.ca.us/general/agsjs/src/agsjs"
+        }]
+    };
+</script>
+
+
+<script src="http://js.arcgis.com/3.9/"></script>
+<script src="https://code.jquery.com/jquery-2.1.3.js"></script>
+
+
+
+<script>
+    dojo.require("esri.map");
+	dojo.require("esri.dijit.Legend");
+    dojo.require("esri.tasks.identify");
+    dojo.require("esri.tasks.query");
+    dojo.require("esri.tasks.QueryTask");
+    dojo.require("esri.layers.FeatureLayer");
+    dojo.require("esri.dijit.Popup");
+	dojo.require("esri.dijit.Geocoder");
+    dojo.require("dijit.layout.BorderContainer");
+    dojo.require("dijit.layout.ContentPane");
+    dojo.require("dijit.layout.AccordionContainer");
+    dojo.require("agsjs.dijit.TOC");
+    dojo.require("dojo.fx");
+    dojo.require("esri.toolbars.draw");
+
+
+
+    var map;
+    var tb;
+    var attributeText;
+	var loading;
+	var drawingNo;
+    var basemap;
+    var aerialmap2010;
+    var aerialmap2007;
+    var aerialmap2013;
+    var hybridMap
+    var identifyService;
+    var excel_html = '';
+    var selectedLocIds = new Array();
+    var selectedAPNs = new Array();
+    var selectGraphic;
+    var identifyHandle;
+    var identifyLayer;
+    var identifyTask;
+    var x = new Object();
+
+
+    require([
+        "esri/map", "esri/toolbars/draw",
+        "esri/symbols/SimpleMarkerSymbol", "esri/symbols/SimpleLineSymbol",
+        "esri/symbols/PictureFillSymbol", "esri/symbols/CartographicLineSymbol",
+        "esri/graphic",
+        "dojo/_base/Color", "dojo/dom", "dojo/on", "dojo/domReady!", "esri/dijit/LayerSwipe", "esri/dijit/Measurement", "esri/dijit/Scalebar",
+        "dijit/layout/BorderContainer",
+        "dijit/layout/ContentPane",
+        "dijit/TitlePane"
+    ],
+    function init(
+            Map, Draw,
+            SimpleMarkerSymbol, SimpleLineSymbol,
+            PictureFillSymbol, CartographicLineSymbol,
+            Graphic,
+            Color, dom, on, domReady, LayerSwipe, Measurement){
+
+        loading = dojo.byId("loadingImg");
+        loading2 = dojo.byId("loadingImgID");
+        
+
+        var initExtent = new esri.geometry.Extent({"xmin":6175286,"ymin":1864174,"xmax":6229349,"ymax":1922997,"spatialReference":{"wkid":2229}});
+        map = new esri.Map("map",{
+            extent:initExtent,
+            logo: false
+        });
+
+        map.disableKeyboardNavigation();
+
+        var legendLayers = [];
+        basemap = new esri.layers.ArcGISTiledMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/Base_Map/MapServer", {id: "basemap"});
+        var HTEmap = new esri.layers.ArcGISDynamicMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/HTE_Lookup/MapServer", {id:'HTElookup', opacity:.5});
+        var redevelopmentMap = new esri.layers.ArcGISDynamicMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/Redevelopment/MapServer", {id:'redevelopmentMap', opacity:.5});
+        var stormMap = new esri.layers.ArcGISDynamicMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/StormDrain/MapServer", {id:'stormMap'});
+        var waterMap = new esri.layers.ArcGISDynamicMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/Water/MapServer", {id:'waterMap'});
+        var sewerMap = new esri.layers.ArcGISDynamicMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/Wastewater/MapServer", { id: 'wastewaterMap' });
+        var eshaMap = new esri.layers.ArcGISDynamicMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/ESHA/MapServer", { id: 'eshaMap' });
+        var sealevelriseMap = new esri.layers.ArcGISDynamicMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/Sea_Level_Rise/MapServer", { id: 'sealevelriseMap' });
+        aerialmap2010 = new esri.layers.ArcGISTiledMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/2010_Aerial_new/MapServer", {id: "aerial2010"});
+        aerialmap2007 = new esri.layers.ArcGISTiledMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/2007Aerial/MapServer", {id: "aerial2007"});
+        aerialmap2013 = new esri.layers.ArcGISTiledMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/2013Aerial/MapServer", {id: "aerialmap2013"});
+        hybridMap = new esri.layers.ArcGISTiledMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/HybridView/MapServer", {id: "hybridMap"});
+        identifyService = new esri.layers.ArcGISDynamicMapServiceLayer("http://maps.ci.oxnard.ca.us/arcgis/rest/services/IdentifyService/MapServer", {id:'identifyMap'});
+        esriConfig.defaults.geometryService = new esri.tasks.GeometryService("http://tasks.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer");
+        x["2007 Aerial"] = aerialmap2007;
+        x["2010 Aerial"] = aerialmap2010;
+        x["2013 Aerial"] = aerialmap2013;
+
+        map.addLayers([basemap, identifyService, HTEmap, stormMap, waterMap, sewerMap, redevelopmentMap, eshaMap, sealevelriseMap]);
+
+        map.on("UpdateStart", showLoading);
+        map.on("UpdateEnd", hideLoading);
+        map.on("MouseMove", showCoordinates);
+        map.on("MouseDrag", showCoordinates);
+
+        
+        identifyParams = new esri.tasks.IdentifyParameters();
+        identifyParams.tolerance = 5;
+        identifyParams.returnGeometry = true;
+        //identifyParams.layerOption = esri.tasks.IdentifyParameters.LAYER_OPTION_VISIBLE;
+        identifyParams.width  = map.width;
+        identifyParams.height = map.height;
+
+        locator = new esri.tasks.Locator("http://maps.ci.oxnard.ca.us/arcgis/rest/services/DBO_AllAddresses_Locator_CreateC/GeocodeServer");
+        dojo.connect(locator, "onAddressToLocationsComplete", function(geocodeResults){
+            map.graphics.clear();
+            var highest;
+            highscore = 0;
+            dojo.forEach(geocodeResults, function(geocodeResult, index) {
+
+                if (geocodeResult.score > 80){
+
+                    if (geocodeResult.score > highscore)
+                    {
+                        highscore = geocodeResult.score;
+                        xmin = geocodeResult.location.x - 300;
+                        xmax = geocodeResult.location.x + 300;
+                        ymin = geocodeResult.location.y - 300;
+                        ymax = geocodeResult.location.y + 300;
+                        var extent = new esri.geometry.Extent({"xmin":xmin, "ymin":ymin, "xmax":xmax, "ymax":ymax, "spatialReference":{"wkid":2229}});
+                        map.setExtent(extent);
+                    }
+                    var symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_CIRCLE, 20, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([255, 0, 0, 0.5]), 10), new dojo.Color([255, 0, 0, 0.9]));
+
+                    var locationGraphic = new esri.Graphic(geocodeResult.location, symbol);
+                    //add the location graphic and text with the address to the map
+                    map.graphics.add(locationGraphic);
+                }
+            });
+        });
+
+        map.on("LayersAddResult", function(results) {
+            var toc = new agsjs.dijit.TOC({
+                map: map,
+                layerInfos: [{
+                    layer: eshaMap,
+                    title: "ESHA Layers",
+                    checked: false
+                    },
+                    {
+                        layer: sealevelriseMap,
+                        title: "Sea Level Rise",
+                    },
+                    {
+                    layer: HTEmap,
+                    title: "Standalone Layers"},
+                    {
+                    layer: redevelopmentMap,
+                    title: "Redevelopment Layers",
+                    checked: false
+                    },
+                    {
+                        layer: stormMap,
+                        title: "Storm Layers",
+                        checked: false
+                    },
+                    {
+                        layer: sewerMap,
+                        title: "Sewer Layers",
+                        checked: false
+                    },
+                    {
+                        layer: waterMap,
+                        title: "Water Layers",
+                        checked: false
+                    }
+                ]
+            }, 'legendDiv');
+            toc.startup();
+        })
+        
+        on(dom.byId("multiSelectButton"), "click", function(){
+            if (document.getElementById('enableIdentify').checked){
+                document.getElementById('enableIdentify').checked = false;
+            }
+            tb = new Draw(map);
+            tb.on("draw-end", addDrawGraphic);
+            tb.activate(Draw.EXTENT);
+            map.disableMapNavigation();
+        });
+
+        function addDrawGraphic(evt){
+            //deactivate the toolbar and clear existing graphics
+            tb.deactivate();
+            map.enableMapNavigation();
+            var sfills = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([255,0,0]), 2), new dojo.Color([255,255,255,.25]) );
+            // figure out which symbol to use
+            map.graphics.add(new Graphic(evt.geometry, sfills));
+            doQueryDrag(evt.geometry);
+        }
+
+
+        var measurement = new Measurement({
+                map: map
+        }, dom.byId("measurementDiv"));
+        measurement.hideTool("location");
+        measurement.startup();
+
+
+    });
+
+
+    function showCompareWindow(){
+        document.getElementById('swipeCompareDialog').style.visibility = "visible";
+        document.getElementById('swipeCompareDialog').style.display = "block";
+        document.getElementById('hideLayerSwipe').style.visibility = "visible";
+        document.getElementById('hideLayerSwipe').style.display = "block";
+        document.getElementById('layerControl').style.visibility = "hidden";
+        document.getElementById('layerControl').style.display = "none";
+        document.getElementById('showLayerSwipe').style.visibility = "hidden";
+        document.getElementById('showLayerSwipe').style.display = "none";
+    }
+
+    
+
+
+    function startSwipe(){
+
+        swipeWidget.enable();
+        swipeWidget.startup();
+    }
+
+    function stopSwipeCompare(){
+        map.removeLayer(aerialmap2013);
+        map.removeLayer(aerialmap2010);
+        map.removeLayer(aerialmap2007);
+        map.addLayer(basemap);
+        map.reorderLayer(basemap, 0);
+        swipeWidget.disable();
+        document.getElementById('startSwipeButton').style.visibility = "hidden";
+        document.getElementById('startSwipeButton').style.display = "none";
+        document.getElementById('stopSwipeButton').style.visibility = "hidden";
+        document.getElementById('stopSwipeButton').style.display = "none";
+    }
+
+    function hideCompareWindow(){
+        document.getElementById('swipeCompareDialog').style.visibility = "hidden";
+        document.getElementById('swipeCompareDialog').style.display = "none";
+        document.getElementById('showLayerSwipe').style.visibility = "visible";
+        document.getElementById('showLayerSwipe').style.display = "block";
+        document.getElementById('hideLayerSwipe').style.visibility = "hidden";
+        document.getElementById('hideLayerSwipe').style.display = "none";
+        document.getElementById('layerControl').style.visibility = "visible";
+        document.getElementById('layerControl').style.display = "block";
+    }
+
+
+    function APNSearch(){
+        var query = new esri.tasks.Query();
+        var queryTask = new esri.tasks.QueryTask("http://maps.ci.oxnard.ca.us/arcgis/rest/services/ParcelSearch/MapServer/0");
+        var searchAPNbar = document.getElementById('apnSearchInput');
+        var queryAPN = searchAPNbar.value;
+        query.where = "APN = " + "'" + queryAPN + "'";
+        query.returnGeometry = true;
+        queryTask.execute(query, zoomToParcel);
+    }
+
+    function zoomToParcel(results){
+        map.graphics.clear();
+        var featureGeometry = results.features[0].geometry.getCentroid();
+        var sfs = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([255,0,0]), 2), new dojo.Color([0,0,0,.25]) );
+
+        var selectedGraphic = new esri.Graphic(results.features[0].geometry, sfs);
+        xmin = featureGeometry.x - 350;
+        xmax = featureGeometry.x + 350;
+        ymin = featureGeometry.y - 350;
+        ymax = featureGeometry.y + 350;
+        var extent = new esri.geometry.Extent({"xmin":xmin, "ymin":ymin, "xmax":xmax, "ymax":ymax, "spatialReference":{"wkid":2229}});
+        map.setExtent(extent);
+        map.graphics.add(selectedGraphic);
+    }
+
+    function locate(){
+        var address = {
+            'SingleLine': document.getElementById("addressSearchInput").value
+        };
+        var options = {
+            address:address,
+            outFields:["*"]
+        };
+        //optionally return the out fields if you need to calculate the extent of the geocoded point
+        locator.addressToLocations(options);
+    }
+
+	
+	function addGraphic(evt){
+		var symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_X, 12, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([75,174,232]), 2), new dojo.Color([75,174,232]))
+		var geometry = evt.mapPoint;
+		map.graphics.clear();
+        map.graphics.add(new esri.Graphic(geometry, symbol));
+	}
+
+    function identifyEnable(evt){
+         
+        if (identifyHandle) {
+            identifyHandle.remove()
+        }
+	    identifyHandle = map.on("click", doIdentify);
+        map.setMapCursor("help");
+        document.getElementById('identifyButton').style.visibility = "hidden";
+        document.getElementById('identifyButton').style.display = "none";
+        document.getElementById('identifyHideButton').style.visibility = "visible";
+        document.getElementById('identifyHideButton').style.display = "block";
+
+    }
+
+    function identifyDisable(evt){
+
+        if (identifyHandle) {
+            identifyHandle.remove()
+        }
+        map.setMapCursor("default");
+        document.getElementById('identifyHideButton').style.visibility = "hidden";
+        document.getElementById('identifyHideButton').style.display = "none";
+        document.getElementById('identifyButton').style.visibility = "visible";
+        document.getElementById('identifyButton').style.display = "block";
+        document.getElementById('identifyContainer').style.visibility = "hidden";
+
+    }
+
+
+    function setIdentifyLayer() {
+        var identifyList = document.getElementById('identifyLayerSelect');
+        var idSelection = identifyList.options[identifyList.selectedIndex].value;
+        document.getElementById('identifyContainer').style.visibility = "hidden";
+        if (idSelection == "Parcel") {
+            identifyTask = new esri.tasks.IdentifyTask("http://maps.ci.oxnard.ca.us/arcgis/rest/services/IdentifyService/MapServer");
+        }
+        else if (idSelection == "Storm") {
+            identifyTask = new esri.tasks.IdentifyTask("http://maps.ci.oxnard.ca.us/arcgis/rest/services/StormDrain/MapServer");
+        }
+        else if (idSelection == "Sewer") {
+            identifyTask = new esri.tasks.IdentifyTask("http://maps.ci.oxnard.ca.us/arcgis/rest/services/Wastewater/MapServer");
+        }
+        else if (idSelection == "Water") {
+            identifyTask = new esri.tasks.IdentifyTask("http://maps.ci.oxnard.ca.us/arcgis/rest/services/Water/MapServer");
+        }
+        else if (idSelection == "Standalone Layers") {
+            identifyTask = new esri.tasks.IdentifyTask("http://maps.ci.oxnard.ca.us/arcgis/rest/services/HTE_Lookup/MapServer");
+        }
+
+    }
+
+    function doIdentify(evt) {
+        
+        if (document.getElementById('identifyLayerSelect').value == "Select Identify...")
+        {
+            window.alert("Please select a layer to identify!");
+        }
+        
+        identifyParams.geometry = evt.mapPoint;
+        identifyParams.mapExtent = map.extent;
+        identifyParams.layerOption = esri.tasks.IdentifyParameters.LAYER_OPTION_ALL;
+        identifyTask.execute(identifyParams, function(idResults) { updateIdentifyList(idResults); });
+        map.graphics.clear();
+        showLoading2();
+    }  
+    
+    function updateIdentifyList(idResults) {
+        hideLoading2();
+        if (idResults.length > 0) {
+            var html = '<td><tr><text style="font-weight:bold">Identified ' + document.getElementById('identifyLayerSelect').value + ' Items:<br></text></tr>';
+            
+            for (var i = 0, il = idResults.length; i < il; i++) {
+                var idResult = idResults[i]
+                attributeText = "";
+                for (attr in idResult.feature.attributes) {
+                    attributeText += attr.toString() + ": " + idResult.feature.attributes[attr].toString() + "<br>"; //stick this kv pair into html element
+                }
+                html += '<tr><text style="font-weight:bold">' + idResults[i].layerName + '<br></text></tr>' + '<tr><text>' + attributeText + '</text></tr>';
+
+                /*if (idResult.feature.geometry == esri.Graphic.geometry.Point)
+                {
+
+                }*/
+            }
+            html += '</td>';
+            document.getElementById('identifyContainer').innerHTML = html;
+            document.getElementById('identifyContainer').style.visibility = "visible";
+           
+        }
+    }
+
+    /*function highlightSelectedIdentify() {
+        var query = new esri.tasks.Query();
+        var queryTask = new esri.tasks.QueryTask("http://mesa/arcgis/rest/services/HTE_Lookup/MapServer/0");
+        var theLocID = document.getElementById('selectedLocID');
+        var queryLocID = theLocID.value;
+        query.where = "LOC_ID = " + "'" + queryLocID + "'";
+        query.returnGeometry = true;
+        queryTask.execute(query, showSelectedLocID);
+    }
+
+    function showSelectedIdentifyResult() {
+        map.graphics.remove(selectGraphic);
+        var symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_SQUARE, 14, null, new dojo.Color([255, 0, 0]))
+        var geometry = results.features[0].geometry;
+        selectGraphic = esri.Graphic(geometry, symbol);
+        map.graphics.add(selectGraphic);
+    }*/
+
+    function clearSelection(evt){
+        selectedLocIds = [];
+        selectedAPNs = [];
+        clearDataList();
+        clearHTEInfo();
+        map.graphics.clear();
+        document.getElementById('identifyContainer').style.visibility = "hidden";
+    }
+
+    
+      
+    function addInfo(idResults, evt){
+
+        for (var i=0, il=idResults.length; i<il; i++){
+            var idResult = idResults[i];
+            if (idResult.layerId === 0) {
+                var feature = idResult.feature;
+                selectedLocIds.push(feature.attributes.LOC_ID);
+                var symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_SQUARE, 14, null, new dojo.Color("#8040e0d1"))
+                var geometry = feature.geometry;
+                map.graphics.add(new esri.Graphic(geometry, symbol));
+            }
+        }
+        document.getElementById('progressBar').style.visibility = "hidden";
+        document.getElementById('progressBar').style.display = "none";
+        updateDataList(selectedLocIds);
+        startquery();
+    }
+
+    function updateDataList(array, evt){
+        if (array.length > 0){
+            var html='<br><select id="selectedLocID" onchange="highlightSelectedLocID()" style="width: 140px; height: auto; overflow: scroll; max-height: 440px" size="20" >';
+            for (var i= 0, il=array.length; i<il; i++) {
+                html+='<option>'+array[i]+'</option>';
+            }
+            html+='</select>';
+            document.getElementById('dataList').innerHTML+= html;
+        }
+    }
+
+    function highlightSelectedLocID(){
+        var query = new esri.tasks.Query();
+        var queryTask = new esri.tasks.QueryTask("http://mesa/arcgis/rest/services/HTE_Lookup/MapServer/0");
+        var theLocID = document.getElementById('selectedLocID');
+        var queryLocID = theLocID.value;
+        query.where = "LOC_ID = " + "'" + queryLocID + "'";
+        query.returnGeometry = true;
+        queryTask.execute(query, showSelectedLocID);
+    }
+
+    function showSelectedLocID(results){
+        map.graphics.remove(selectGraphic);
+        var symbol = new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_SQUARE, 14, null, new dojo.Color([255,0,0]))
+        var geometry = results.features[0].geometry;
+        selectGraphic = esri.Graphic(geometry, symbol);
+        map.graphics.add(selectGraphic);
+    }
+
+
+    function clearDataList(){
+        document.getElementById('dataList').innerHTML = '';
+        document.getElementById('dataList').innerHTML = '<text style="font-weight:bold">Selected Items:</text>';
+        document.getElementById('export_excel').style.visibility = 'hidden';
+    }
+
+    function clearHTEInfo(){
+        document.getElementById('HTEresult').innerHTML = '<text style="font-weight:bold"></text>';
+    }
+
+
+    function changeBasemapLayer(evt){
+        var layerList = document.getElementById('layerSelect');
+        var selection = layerList.options[layerList.selectedIndex].value;
+
+        if (selection == "Basemap")
+        {
+            map.removeLayer(aerialmap2010);
+            map.removeLayer(basemap);
+            map.removeLayer(aerialmap2007);
+            map.removeLayer(aerialmap2013);
+            map.removeLayer(hybridMap);
+            map.addLayer(basemap);
+            map.reorderLayer(basemap, 0);  
+            document.getElementById('hybridCheckbox').disabled = true;
+            document.getElementById('hybridCheckbox').checked = false;
+        }
+
+        else if (selection == "2010 Aerial"){
+            map.removeLayer(basemap);
+            map.removeLayer(aerialmap2010);
+            map.removeLayer(aerialmap2007);
+            map.removeLayer(aerialmap2013);
+            map.addLayer(aerialmap2010);
+            map.reorderLayer(aerialmap2010, 0);
+            document.getElementById('hybridCheckbox').disabled = false;
+        }
+
+        else if (selection == "2007 Aerial"){
+            map.removeLayer(basemap);
+            map.removeLayer(aerialmap2010);
+            map.removeLayer(aerialmap2007);
+            map.removeLayer(aerialmap2013);
+            map.addLayer(aerialmap2007);
+            map.reorderLayer(aerialmap2007, 0);
+            document.getElementById('hybridCheckbox').disabled = false;
+        }
+
+        else if (selection == "2013 Aerial"){
+            map.removeLayer(basemap);
+            map.removeLayer(aerialmap2010);
+            map.removeLayer(aerialmap2007);
+            map.removeLayer(aerialmap2013);
+            map.addLayer(aerialmap2013);
+            map.reorderLayer(aerialmap2013, 0);
+            document.getElementById('hybridCheckbox').disabled = false;
+        }
+    }
+
+    function addHybridView(evt){
+        if (document.getElementById('hybridCheckbox').checked){
+            map.addLayer(hybridMap);
+            map.reorderLayer(hybridMap, 1);
+        }
+        else {
+            map.removeLayer(hybridMap);
+        }
+    }
+	
+	function showCoordinates(evt){
+		if (dojo.byId("latLonRadio").checked)
+		{
+			var mp1 = esri.geometry.Point(evt.mapPoint);
+			dojo.byId("info").innerHTML = createLatLong(mp1.x, mp1.y);
+		}
+		
+		if (dojo.byId("xYRadio").checked)
+		{
+			var mp = esri.geometry.Point(evt.mapPoint);
+			dojo.byId("info").innerHTML = mp.x.toFixed(3) + ", " + mp.y.toFixed(3);
+		}
+     }
+
+    function createXY(lon, lat){
+        var a = 20925646.325375615;     // major radius of Clarke 1866 ellipsoid, feet
+        var e = 0.08181919111988833;   // eccentricity of Clarke 1866 ellipsoid
+        var e2 = e * e;              // eccentricity squared
+        var angRad = 0.01745329252;     // number of radians in a degree
+        var pi4 = 3.141592653582 / 4;   // Pi / 4
+        var p1 = 34.033333 * angRad;    // latitude of first standard parallel
+        var p2 = 35.466667 * angRad;    // latitude of second standard parallel
+        var p0 = 33.500000 * angRad;    // latitude of origin
+        var m0 = -118.0 * angRad;       // central meridian
+        var X0 = 6561666.666667;        // False easting of central meridian, feet
+        var Y0 = 1640416.666667;        // False northing of central meridian, feet
+
+        //' Calculate the coordinate system constants.
+        var m1 = Math.cos(p1) / Math.sqrt(1 - (e2 * Math.pow((Math.sin(p1)), 2)));
+        var m2 = Math.cos(p2) / Math.sqrt(1 - (e2 * Math.pow((Math.sin(p2)), 2)));
+        var t0 = Math.tan(pi4 - (p0 / 2)) / Math.pow((1 - e * Math.sin(p0)) / (1 + e * Math.sin(p0)), (e / 2));
+        var t1 = Math.tan(pi4 - (p1 / 2)) / Math.pow((1 - e * Math.sin(p1)) / (1 + e * Math.sin(p1)), (e / 2));
+        var t2 = Math.tan(pi4 - (p2 / 2)) / Math.pow((1 - e * Math.sin(p2)) / (1 + e * Math.sin(p2)), (e / 2));
+        var n = Math.log(m1 / m2) / Math.log(t1 / t2);
+        var f = m1 / (n * Math.pow(t1, n));
+        var rho0 = a * f * Math.pow(t0, n);
+
+        lat = lat * angRad;
+        lon = lon * angRad;
+        var t = Math.tan(pi4 - (lat / 2));
+        t = t / Math.pow(((1 - (e * (Math.sin(lat)))) / (1 + (e * (Math.sin(lat))))), (e / 2));
+        var rho = a * f * Math.pow(t, n);
+        var theta = n * (lon - m0);
+        var x = (rho * Math.sin(theta)) + X0;
+        var y = rho0 - (rho * Math.cos(theta)) + Y0;
+
+        lat = lat / angRad;
+        lon = lon / angRad;
+        x = Math.round(x);
+		y = Math.round(y)
+        return x, y;
+    }
+
+    function createLatLong(x, y){
+        var a = 20925646.325375615;     // major radius of Clarke 1866 ellipsoid, feet
+        var e = 0.08181919111988833;    // eccentricity of Clarke 1866 ellipsoid
+        var e2 = e * e;                 // eccentricity squared
+        var angRad = 0.01745329252;     // number of radians in a degree
+        var pi4 = 3.141592653582 / 4;   // Pi / 4
+        var p1 = 34.033333 * angRad;    // latitude of first standard parallel
+        var p2 = 35.466667 * angRad;    // latitude of second standard parallel
+        var p0 = 33.500000 * angRad;    // latitude of origin
+        var m0 = -118.0 * angRad;       // central meridian
+        var X0 = 6561666.666667;        // False easting of central meridian, feet
+        var Y0 = 1640416.666667;        // False northing of central meridian, feet
+
+        //' Calculate the coordinate system constants.
+        var m1 = Math.cos(p1) / Math.sqrt(1 - (e2 * Math.pow((Math.sin(p1)), 2)));
+        var m2 = Math.cos(p2) / Math.sqrt(1 - (e2 * Math.pow((Math.sin(p2)), 2)));
+        var t0 = Math.tan(pi4 - (p0 / 2)) / Math.pow((1 - e * Math.sin(p0)) / (1 + e * Math.sin(p0)), (e / 2));
+        var t1 = Math.tan(pi4 - (p1 / 2)) / Math.pow((1 - e * Math.sin(p1)) / (1 + e * Math.sin(p1)), (e / 2));
+        var t2 = Math.tan(pi4 - (p2 / 2)) / Math.pow((1 - e * Math.sin(p2)) / (1 + e * Math.sin(p2)), (e / 2));
+        var n = Math.log(m1 / m2) / Math.log(t1 / t2);
+        var f = m1 / (n * Math.pow(t1, n));
+        var rho0 = a * f * Math.pow(t0, n);
+
+        // Calculate the Longitude.
+            x = x - X0;
+            y = y - Y0;
+            var Pi2 = pi4 * 2;
+            var rho = Math.sqrt(Math.pow(x, 2) + (Math.pow(rho0 - y, 2)));
+            var theta = Math.atan(x / (rho0 - y));
+            var t = Math.pow(rho / (a * f), (1 / n));
+            var LonR = theta / n + m0;
+            //x = x + X0;
+
+            // Estimate the Latitude
+            var Lat0 = Pi2 - (2 * Math.atan(t));
+
+            // Substitute the estimate into the iterative calculation that
+            // converges on the correct Latitude value.
+            var part1 = (1 - (e * Math.sin(Lat0))) / (1 + (e * Math.sin(Lat0)));
+            var LatR = Pi2 - (2 * Math.atan(t * Math.pow(part1, (e / 2))));
+            do
+            {
+                Lat0 = LatR;
+                part1 = (1 - (e * Math.sin(Lat0))) / (1 + (e * Math.sin(Lat0)));
+                //LatR = Pi2 - (2 * Math.atan2((t * (part1**(Ec/2))),1));
+                LatR = Pi2 - (2 * Math.atan(t * Math.pow(part1, (e / 2))));
+            } while (Math.abs(LatR - Lat0) > 0.000000002);
+
+            // Convert from radians to degrees.
+            var Lat = LatR / angRad;
+            var Lon = LonR / angRad;
+            return Lat.toFixed(5) + ", " + Lon.toFixed(5);
+    }
+
+    
+
+    function orientationChanged(){
+        console.log("Orientation changed: " + window.orientation);
+        if(map) {
+            map.reposition();
+            map.resize();
+        }
+    }
+
+	function showLoading(){
+          esri.show(loading);
+          map.disableMapNavigation();
+          map.hideZoomSlider();
+    }
+
+    function hideLoading(error){
+          esri.hide(loading);
+          map.enableMapNavigation();
+          map.showZoomSlider();
+    }
+
+    function showLoading2() {
+        document.getElementById('loadingImgID').style.visibility = "visible";
+        document.getElementById('loadingImgID').style.display = "block";
+        map.disableMapNavigation();
+        map.hideZoomSlider();
+    }
+
+    function hideLoading2(error) {
+        document.getElementById('loadingImgID').style.visibility = "hidden";
+        document.getElementById('loadingImgID').style.display = "none";
+        map.enableMapNavigation();
+        map.showZoomSlider();
+    }
+
+    function hideLegend(){
+        document.getElementById('legendWindow').style.visibility = "hidden";
+        document.getElementById('legendWindow').style.display = "none";
+        document.getElementById('showLegendControl').style.visibility = "visible";
+        document.getElementById('showLegendControl').style.display = "block";
+    }
+
+    function showLegend(){
+        document.getElementById('legendWindow').style.visibility = "visible";
+        document.getElementById('legendWindow').style.display = "block";
+        document.getElementById('showLegendControl').style.visibility = "hidden";
+        document.getElementById('showLegendControl').style.display = "none";
+    }
+		
+    dojo.ready(init);
+
+</script>
+</head>
+
+<body>
+    
+
+<div id="borderContainer"
+     data-dojo-type="dijit.layout.BorderContainer"
+     data-dojo-props="design:'headline',gutters:false"
+     style="width: 100%; height: 100%; margin: 0;">
+	<div id="map">
+        
+        <img id="logo" src="http://maps.ci.oxnard.ca.us/general/citylogo.png" style="position: fixed; left:4%; top:1%; height:85px; width:175px; z-index:100" />
+		<img id="loadingImg" src="http://maps.ci.oxnard.ca.us/ajax-loader.gif" style="position:fixed; left:50%; top:50%;  z-index:100;" />
+        <img id="loadingImgID" src="http://maps.ci.oxnard.ca.us/gears-animated.gif" style="position:fixed; left:49%; top:49%;  z-index:100; visibility: hidden" />
+        <div style="z-index:50; position:absolute; top: 15px; right: 2%; width:475px; height:75px; padding:10px; background-color:rgba(255, 255, 255, 0.8)">
+            <table>
+                <tr>
+                    <td>
+                        <text style="font-family:Trebuchet MS">Address Search:</text>
+                    </td>
+                    <td>
+                        <input id="addressSearchInput" type="text" oninput="locate()" size="40" />
+                    </td>
+                    <td>
+                        <button id="addressSearchButton" style="  font-family: Trebuchet MS; " onclick="locate()">Search</button><br>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <text style="font-family:Trebuchet MS">APN Search:</text>
+                    </td>
+                    <td>
+                        <input id="apnSearchInput" type="text" size="20" onkeydown="return APNSearch()" />
+                    </td>
+                    <td>
+                        <button id="apnSearchButton" style="  font-family: Trebuchet MS;" onclick="APNSearch()">Search</button><br>
+                    </td>
+                </tr>
+            </table>
+        </div>
+		<span id="info" style="position:absolute; left:15px; bottom:5px; color:#000; z-index:50; font-family: Trebuchet MS"></span>
+		<div id="coordSelector" style="position:fixed; left:2%; bottom:2%; z-index:50; padding-bottom: 5px">
+			<input type="radio" name="coordRadio" id="latLonRadio"/>
+			<label for="latLonRadio" style="font-family: Trebuchet MS">Lat/Lon</label>
+			<input type="radio" name="coordRadio" id="xYRadio" checked="checked"/>
+			<label for="xYRadio"  style="font-family: Trebuchet MS">X/Y</label>
+		</div>
+
+        <span id="updateMessage" style="position:absolute; right:580px; bottom:12px; color:#000; z-index:50; font-family: Trebuchet MS"> <a href="http://mesa/general/WebGISHelp.docx"> Help Document</a></span>
+
+        <div id="identifyContainer" style="position:absolute; height: 400px; width:250px; overflow-x: scroll; overflow-y:scroll; background-color:rgba(255, 255, 255, 0.8); visibility: hidden; bottom:15%; right:1%; z-index: 100; font-family: Trebuchet MS; padding: 10px  ">
+            <table"></table>
+        </div>
+
+        <div id="layerControl" style="position:absolute; background:rgba(255, 255, 255, 0.5); right:85px; bottom:1%; color:#000; z-index:50; font-family: Trebuchet MS">
+            <select id="layerSelect" onchange="changeBasemapLayer()">
+                <option>Basemap</option>
+                <option>2007 Aerial</option>
+                <option>2010 Aerial</option>
+                <option>2013 Aerial</option>
+            </select>
+        </div>
+
+        <div id="legendWindow" class="shadow" draggable="true" style="background-color: rgba(255, 255, 255, 0.8)">
+            <h3>Legend</h3>
+            <div id="info1">
+                <div id="legendDiv"></div>
+            </div>
+            <footer>
+                <button onclick="hideLegend()">Hide</button>
+            </footer>
+	    </div>
+
+        <div id="showLegendControl" style="visibility: hidden; top: 95px; left: 2%; position: absolute; z-index: 100;">
+            <button onclick="showLegend()">Show Legend</button>
+        </div>
+
+        <div id="clearSelect" style="bottom: 1%; right: 180px; position: absolute; z-index: 100;">
+            <button onclick="clearSelection()">Clear Search Results</button>
+        </div>
+
+        <div id="identifyLayerSelectContainer" style="position:absolute; bottom:1%; right: 436px; background:rgba(255, 255, 255, 0.5); font-family: Trebuchet MS; z-index: 100; visibility:visible;" >
+            <select id="identifyLayerSelect" onchange="setIdentifyLayer()">
+                <option>Select Identify...</option>
+                <option>Parcel</option>
+                <option>Sewer</option>
+                <option>Storm</option>
+                <option>Standalone Layers</option>
+                <option>Water</option>
+            </select>
+        </div>
+
+        <div id="identifyButton" style="bottom: 1%; right: 325px; position: absolute; z-index: 100; font-family: Trebuchet MS">
+            <button id="enableIdentify" onclick="identifyEnable()">Enable Identify</button>
+        </div>
+
+        <div id="identifyHideButton" style="bottom: 1%; visibility: hidden; right: 325px; position: absolute; z-index: 100; font-family: Trebuchet MS">
+            <button id="hideIdentify" onclick="identifyDisable()">Disable Identify</button>
+        </div>
+
+        <div id="hybridSelect" style="bottom: 1%; right: 10px; position: absolute; z-index: 100; font-family: Trebuchet MS">
+            <input id="hybridCheckbox" type="checkbox" disabled="true" onclick="addHybridView()">Hybrid</input>
+        </div>
+
+        <div class="claro" style="position:absolute; font-family: 'Trebuchet MS'; right:2%; top:125px; z-Index:99;">
+            <div id="titlePane" data-dojo-type="dijit.TitlePane" data-dojo-props="title:'Measurement', closable:'false', open:0">
+                <div id="measurementDiv" style="font-family: 'Trebuchet MS'"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
