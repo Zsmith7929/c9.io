@@ -1,0 +1,13 @@
+Fix the present logic. It is not exiting the gilded hero splash
+
+Add in logic to upgrade heroes at specific gold denominations.
+Use mousescroll and image recognition. Maybe make a bounding box.
+
+Make ascension logic
+
+General additions:
+    Add generous bounding boxes to image checks instead of whole screen
+        - i.e. boss check
+    Make a "keep alive" function to refence instead of pasting it everywhere
+    Make a more fluid loop sequence and time out loops appropriately
+    Make 
