@@ -4,6 +4,8 @@
 HotKeySet("{F8}", "toggleScript")
 HotKeySet("{F9}", "terminate")
 
+AutoItSetOption("SendCapslockMode",0) ; Prevent controlSend from activating the caps lock key
+
 ; Game location properties
 Global $left=0
 Global $top=0
@@ -15,6 +17,8 @@ $stuck = False
 $monitorOneWidth = 1920
 $x1=0
 $y1=0
+$x2=0
+$y2=0
 
 Func terminate()
 	; kills both scripts
@@ -35,6 +39,10 @@ Func checkScreen()
    $right = $left + $aPos[2]
    $bottom = $top + $aPos[3]
 EndFunc
+
+Func _RunAU3($sFilePath, $sWorkingDir = "", $iShowFlag = @SW_SHOW, $iOptFlag = 0)
+	Return Run('"' & @AutoItExe & '" /AutoIt3ExecuteScript "' & $sFilePath & '"', $sWorkingDir, $iShowFlag, $iOptFlag)
+EndFunc   ;==>_RunAU3
 
 Func getScreenshot()
 
@@ -83,12 +91,68 @@ Func toggleScript()
 	EndIf
 EndFunc
 
+Func massUpgrade()
+
+	checkScreen()
+	$hnd = WinGetHandle("Clicker Heroes")
+	ControlSend("Clicker Heroes","", "", "{CTRLDOWN}")
+	Sleep(500)
+	$fail = 0
+	While $fail < 40
+		$level = _ImageSearchArea("images/x100.png", 1, $left, $top, $right, $bottom, $x1, $y1, 120)
+
+		If $level == 1 And ($bottom - $top) > 175 Then
+			;MsgBox(0,"a","found one-- top: " & $top & " bottom: " & $bottom)
+
+			Local $red = PixelSearch($x1-100, $y1, $x1+100, $y1+100, 0xFE8743, 10, 1, $hnd)
+
+			If @error == 0 Then
+				;MsgBox(0,"a","found red. current top: " & $top & "new top: " & $red[1])
+				$top = $red[1]
+				$fail = $fail + 1
+			Else
+				$x1 = $x1 - $monitorOneWidth
+				;MsgBox(0,"a","trying to click x:" & $x1 & " y:" & $y1)
+				ControlClick("Clicker Heroes","", "", "Left",1,$x1,$y1)
+				Sleep(300)
+
+			EndIf
+
+		Else
+			ControlClick("Clicker Heroes", "", "", "left", 1, 1173, 511) ; Move cursor
+			Sleep(500)
+			checkScreen()
+			$down = _ImageSearchArea("images/scroll.png", 1, $left, $top, $right, $bottom, $x1, $y1, 80)
+			$x1 = $x1 - $monitorOneWidth
+			If $down == 1 Then
+				;MsgBox(0,"a","trying to scroll at x:" & $x1 & " y:" & $y1+60)
+				ControlClick("Clicker Heroes","", "", "Left",1,$x1,$y1+40)
+				Sleep(1000)
+			Else
+				;MsgBox(0,"a","couldn't find the scroll bar")
+			EndIf
+			$fail = $fail + 1
+
+		EndIf
+	WEnd
+	ControlSend("Clicker Heroes","", "", "{CTRLUP}")
+
+EndFunc
 
 Run("juggernaut.exe") ; KEEP JUGGERNAUT ALIVE SCRIPT, runs separately
+;_RunAU3("juggernaut.exe")
+
+$levelTick = 0
 
 While 1
 
 	If $pause = False Then
+
+		If Mod($levelTick, 7) == 0 Then
+			ControlClick("Clicker Heroes", "", "", "left", 2, 781, 290) ; SCROLL UP
+			Sleep(500)
+			massUpgrade()
+		EndIf
 
 
 		Sleep(300)
@@ -99,7 +163,7 @@ While 1
 		; Try to upgrade errthang
 
 		Sleep(300)
-		ControlClick("Clicker Heroes", "", "", "left", 2, 781, 342) ; SCROLL UP
+		ControlClick("Clicker Heroes", "", "", "left", 2, 781, 450) ; SCROLL UP
 		Sleep(500)
 		ControlClick("Clicker Heroes", "", "", "left", 2, 780, 790) ; SCROLL DOWN
 		Sleep(500)
@@ -118,7 +182,7 @@ While 1
 		ControlClick("Clicker Heroes", "", "", "left", 10, 180, 368) ; LEVEL
 		Sleep(500)
 
-		ControlClick("Clicker Heroes", "", "", "left", 2, 781, 342) ; SCROLL UP
+		ControlClick("Clicker Heroes", "", "", "left", 2, 781, 450) ; SCROLL UP
 		Sleep(300)
 
 
@@ -193,7 +257,11 @@ While 1
 				Next
 			EndIf
 		Next
+
+		$levelTick = $levelTick + 1
+
 	Else
 		Sleep(1000)
 	EndIf
+
 WEnd
