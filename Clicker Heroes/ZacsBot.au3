@@ -1,8 +1,10 @@
 #include <ImageSearch.au3>
 #include <ScreenCapture.au3>
+#include <Date.au3>
 
 HotKeySet("{F8}", "toggleScript")
 HotKeySet("{F9}", "terminate")
+HotKeySet("{F10}", "ascend")
 
 AutoItSetOption("SendCapslockMode",0) ; Prevent controlSend from activating the caps lock key
 
@@ -12,6 +14,9 @@ Global $top=0
 Global $right=0
 Global $bottom=0
 
+$handle = WinGetHandle("Clicker Heroes")
+$levelTick = 0
+$bossFail = 0
 $pause = True
 $stuck = False
 $monitorOneWidth = 1920
@@ -55,7 +60,7 @@ Func findScreenshot($filename)
 	$result = _ImageSearchArea($filename, 1, $left, $top, $right, $bottom, $x1, $y1, 100)
 	$x1 = $x1 - $monitorOneWidth
 	If $result = 1 Then
-		ControlClick("Clicker Heroes","", "", "Left",2, $x1, $y1)
+		ControlClick($handle,"", "", "Left",2, $x1, $y1)
 		Sleep(300)
 	EndIf
 EndFunc
@@ -66,8 +71,9 @@ Func farmModeOff()
 	$result = _ImageSearchArea("images/farm.png", 1, $left, $top, $right, $bottom, $x1, $y1, 100)
 	If $result = 1 Then
 		Sleep(300)
-		ControlClick("Clicker Heroes","", "", "Left",1, 1519, 335)
+		ControlClick($handle,"", "", "Left",1, 1519, 335)
 		Sleep(300)
+		$bossFail = $bossFail + 1
 	Else
 	EndIf
 EndFunc
@@ -77,9 +83,9 @@ Func findFish()
    $x1 = $x1 - $monitorOneWidth
 	  If $result = 1 Then
 		 ;MsgBox(0,"Fish Result","find the feesh at x:" & $x1 & " y:" & $y1 & " ", 5)
-		 ControlClick("Clicker Heroes","", "", "Left",5,$x1,$y1)
+		 ControlClick($handle,"", "", "Left",5,$x1,$y1)
 		 Sleep(300)
-		 ControlClick("Clicker Heroes","", "", "Left",5,$x1,$y1)
+		 ControlClick($handle,"", "", "Left",5,$x1,$y1)
 	  EndIf
 EndFunc
 
@@ -91,99 +97,260 @@ Func toggleScript()
 	EndIf
 EndFunc
 
-Func massUpgrade()
+Func upgrade($image, $mass=True, $checkRed=True, $click=True)
 
 	checkScreen()
-	$hnd = WinGetHandle("Clicker Heroes")
-	ControlSend("Clicker Heroes","", "", "{CTRLDOWN}")
+	ControlSend($handle,"", "", "{CTRLDOWN}")
 	Sleep(500)
 	$fail = 0
+	ControlClick($handle, "", "", "left", 1, 1173, 511) ; Move cursor
+	Sleep(500)
+	ControlClick($handle, "", "", "left", 2, 781, 290) ; SCROLL UP
+	Sleep(500)
 	While $fail < 40
-		$level = _ImageSearchArea("images/x100.png", 1, $left, $top, $right, $bottom, $x1, $y1, 120)
+		If $mass == True Then
+			$level = _ImageSearchArea("images/x100.png", 1, $left, $top, $right, $bottom, $x1, $y1, 120)
+		Else
+			$level = _ImageSearchArea($image, 1, $left, $top, $right, $bottom, $x1, $y1, 120)
+		EndIf
 
 		If $level == 1 And ($bottom - $top) > 175 Then
 			;MsgBox(0,"a","found one-- top: " & $top & " bottom: " & $bottom)
 
-			Local $red = PixelSearch($x1-100, $y1, $x1+100, $y1+100, 0xFE8743, 10, 1, $hnd)
+			If $checkRed == True Then
 
-			If @error == 0 Then
-				;MsgBox(0,"a","found red. current top: " & $top & "new top: " & $red[1])
-				$top = $red[1]
-				$fail = $fail + 1
+				Local $red = PixelSearch($x1-100, $y1, $x1+100, $y1+100, 0xFE8743, 10, 1, $handle)
+
+				If @error == 0 Then
+					;MsgBox(0,"a","found red. current top: " & $top & "new top: " & $red[1])
+					$top = $red[1]
+					$fail = $fail + 1
+				Else
+					$x1 = $x1 - $monitorOneWidth
+					;MsgBox(0,"a","trying to click x:" & $x1 & " y:" & $y1)
+					ControlClick($handle,"", "", "Left",1,$x1,$y1)
+					Sleep(300)
+					ControlClick($handle, "", "", "left", 1, 1173, 511)
+					Sleep(300)
+
+				EndIf
+
 			Else
-				$x1 = $x1 - $monitorOneWidth
-				;MsgBox(0,"a","trying to click x:" & $x1 & " y:" & $y1)
-				ControlClick("Clicker Heroes","", "", "Left",1,$x1,$y1)
-				Sleep(300)
+				If $click == True Then
+					$x1 = $x1 - $monitorOneWidth
+					;MsgBox(0,"a","trying to click x:" & $x1 & " y:" & $y1)
+					ControlClick($handle,"", "", "Left",1,$x1,$y1-20)
+					Sleep(300)
+					Return 1
 
+				Else
+					Local $z[2]
+					$x1 = $x1 - $monitorOneWidth
+					$z[0] = $x1
+					$z[1] = $y1
+					ControlSend($handle,"", "", "{CTRLUP}")
+					Sleep(300)
+					Return $z
+				EndIf
 			EndIf
 
 		Else
-			ControlClick("Clicker Heroes", "", "", "left", 1, 1173, 511) ; Move cursor
+			$fail = $fail + 1
+			ControlClick($handle, "", "", "left", 1, 1173, 511) ; Move cursor
 			Sleep(500)
 			checkScreen()
 			$down = _ImageSearchArea("images/scroll.png", 1, $left, $top, $right, $bottom, $x1, $y1, 80)
 			$x1 = $x1 - $monitorOneWidth
 			If $down == 1 Then
 				;MsgBox(0,"a","trying to scroll at x:" & $x1 & " y:" & $y1+60)
-				ControlClick("Clicker Heroes","", "", "Left",1,$x1,$y1+40)
+				ControlClick($handle,"", "", "Left",1,$x1,$y1+37)
 				Sleep(1000)
 			Else
 				;MsgBox(0,"a","couldn't find the scroll bar")
 			EndIf
-			$fail = $fail + 1
 
 		EndIf
 	WEnd
-	ControlSend("Clicker Heroes","", "", "{CTRLUP}")
+	ControlSend($handle,"", "", "{CTRLUP}")
+
+	Sleep(300)
+	ControlClick($handle, "", "", "left", 2, 781, 450) ; SCROLL UP
+	Sleep(500)
+	ControlClick($handle, "", "", "left", 2, 780, 790) ; SCROLL DOWN
+	Sleep(500)
+
+	; "Buy Available Upgrades"
+	checkScreen()
+	findScreenshot("images/upgrade.png")
+
+	Sleep(300)
+
+	checkScreen()
+	Local $z[2]
+	$z[0] = 0
+	$z[1] = 0
+	Return $z
 
 EndFunc
+
+Func gildedUpgrade($filename)
+	$samurai = upgrade($filename, False, False, False)
+	ControlSend($handle,"", "", "{CTRLDOWN}")
+	If $samurai[0] > 0 Then
+		For $i = 0 To 5 Step 1
+			ControlClick($handle, "", "", "left", 1, $samurai[0]-350, $samurai[1]+40)
+			Sleep(300)
+		Next
+	EndIf
+	ControlSend($handle,"", "", "{CTRLUP}")
+	ControlClick($handle, "", "", "left", 2, 781, 450) ; SCROLL UP
+	Sleep(500)
+
+EndFunc
+
+Func ascend()
+	;salvage before ascending
+	checkScreen()
+	;MsgBox(0,"ascend","starting ascension ")
+	$relic = _ImageSearchArea("images/relic.png", 1, $left, $top, $right, $bottom, $x1, $y1, 120)
+	If $relic == 1 Then
+		Local $newX1 = $x1-$monitorOneWidth
+		;MsgBox(0,"ascend","relic at x: " & $newX1 & " y: " & $y1)
+		_ScreenCapture_Capture("relic.png",$x1-10, $y1-10, $x1+10, $y1+10)
+		Sleep(300)
+		ControlClick($handle,"", "", "Left",5,$newX1,$y1-25)
+		Sleep(500)
+		;hit the salvage button
+		$salvage = _ImageSearchArea("images/salvage.png", 1, $left, $top, $right, $bottom, $x1, $y1, 120)
+		If $salvage == 1 Then
+			;MsgBox(0,"ascend","salvage")
+			Sleep(300)
+			ControlClick($handle,"", "", "Left",1,$x1-$monitorOneWidth,$y1-20)
+			Sleep(500)
+			;confirm salvage
+			$yes = _ImageSearchArea("images/yes.png", 1, $left, $top, $right, $bottom, $x1, $y1, 100)
+			If $yes == 1 Then
+				;MsgBox(0,"ascend","yes ")
+				ControlClick($handle,"", "", "Left",1,$x1-$monitorOneWidth,$y1-20)
+				Sleep(300)
+				ControlClick($handle,"", "", "Left",1,$x1-$monitorOneWidth,$y1-20)
+				Sleep(500)
+
+			Else
+				Return
+			EndIf
+
+		EndIf
+
+	Else
+		Return
+	EndIf
+
+	;back to the main page
+	$main = _ImageSearchArea("images/main.png", 1, $left, $top, $right, $bottom, $x1, $y1, 120)
+	If $main == 1 Then
+		Sleep(300)
+		ControlClick($handle,"", "", "Left",1,$x1-$monitorOneWidth,$y1-20)
+		Sleep(500)
+		ControlClick($handle,"", "", "Left",1,$x1-$monitorOneWidth,$y1-20)
+		Sleep(500)
+		;search for amenhotep to ascend
+		$ascend = upgrade("images/ascend.png", False, False, True)
+		If $ascend > 0 Then
+			Sleep(1000)
+			$yes = _ImageSearchArea("images/yesascend.png", 1, $left, $top, $right, $bottom, $x1, $y1, 120)
+			If $yes == 1 Then
+				;MsgBox(0,"ascend","yes ")
+				Sleep(300)
+				ControlClick($handle,"", "", "Left",1,$x1-$monitorOneWidth,$y1-20)
+				Sleep(500)
+				farmModeOff()
+				Sleep(300)
+				$levelTick = 0
+				$bossFail = 0
+				FileWriteLine("ascendlog.txt", "Ascended at: " & _DateTimeFormat(_NowCalc(), 1) & " " & _NowTime())
+
+			Else
+				Return
+			EndIf
+
+		Else
+			Return
+		EndIf
+
+
+	Else
+		Return
+	EndIf
+
+EndFunc
+
 
 Run("juggernaut.exe") ; KEEP JUGGERNAUT ALIVE SCRIPT, runs separately
 ;_RunAU3("juggernaut.exe")
 
-$levelTick = 0
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 While 1
 
 	If $pause = False Then
 
-		If Mod($levelTick, 7) == 0 Then
-			ControlClick("Clicker Heroes", "", "", "left", 2, 781, 290) ; SCROLL UP
-			Sleep(500)
-			massUpgrade()
+		$result = _ImageSearchArea("images/x4.png", 1, 3033, 120, 3324, 254, $x1, $y1, 100)
+		If $result == 1 Then
+			ControlClick($handle,"", "", "Left",5,$x1,$y1)
+			Sleep(300)
+		EndIf
+
+		$result = _ImageSearchArea("images/x.png", 1, 3033, 120, 3324, 254, $x1, $y1, 100)
+		If $result == 1 Then
+			ControlClick($handle,"", "", "Left",5,$x1,$y1)
+			Sleep(300)
+		EndIf
+
+		$result = _ImageSearchArea("images/x2.png", 1, 3033, 120, 3324, 254, $x1, $y1, 100)
+		If $result == 1 Then
+			ControlClick($handle,"", "", "Left",5,$x1,$y1)
+			Sleep(300)
+		EndIf
+
+		$result = _ImageSearchArea("images/x3.png", 1, 3033, 120, 3324, 254, $x1, $y1, 100)
+		If $result == 1 Then
+			ControlClick($handle,"", "", "Left",5,$x1,$y1)
+			Sleep(300)
+		EndIf
+
+
+		If $bossFail < 24 Then
+			checkScreen()
+			findFish()
+			Sleep(300)
 		EndIf
 
 
 		Sleep(300)
 		farmModeOff()
 		Sleep(300)
-		ControlSend("Clicker Heroes","", "", "6")
+		ControlSend($handle,"", "", "6")
+		Sleep(300)
+		ControlSend($handle,"", "", "9")
 
 		; Try to upgrade errthang
 
 		Sleep(300)
-		ControlClick("Clicker Heroes", "", "", "left", 2, 781, 450) ; SCROLL UP
-		Sleep(500)
-		ControlClick("Clicker Heroes", "", "", "left", 2, 780, 790) ; SCROLL DOWN
-		Sleep(500)
 
+		gildedUpgrade("images/atlas.png")
 
-		; "Buy Available Upgrades"
-		checkScreen()
-		findScreenshot("images/upgrade.png")
-
+		ControlClick($handle, "", "", "left", 2, 781, 450) ; SCROLL UP
 		Sleep(300)
 
-		ControlClick("Clicker Heroes", "", "", "left", 10, 185, 646) ; LEVEL
-		Sleep(300)
-		ControlClick("Clicker Heroes", "", "", "left", 10, 183, 504) ; LEVEL
-		Sleep(300)
-		ControlClick("Clicker Heroes", "", "", "left", 10, 180, 368) ; LEVEL
-		Sleep(500)
-
-		ControlClick("Clicker Heroes", "", "", "left", 2, 781, 450) ; SCROLL UP
-		Sleep(300)
+		If Mod($levelTick, 10) == 0 Then
+			Sleep(500)
+			If $bossFail > 25 Then
+				ascend()
+			Else
+				upgrade(0)
+			EndIf
+		EndIf
 
 
 		;Check for presents!
@@ -192,17 +359,17 @@ While 1
 
 		If $present == 1 Then
 				$x1 = $x1 - $monitorOneWidth
-			ControlClick("Clicker Heroes","", "", "Left",5,$x1,$y1)
+			ControlClick($handle,"", "", "Left",5,$x1,$y1)
 			Sleep(1000)
-			ControlClick("Clicker Heroes","", "", "Left",5,807, 472)
+			ControlClick($handle,"", "", "Left",5,807, 472)
 			Sleep(1000)
-			ControlClick("Clicker Heroes","", "", "Left",5,1267, 168)
+			ControlClick($handle,"", "", "Left",5,1267, 168)
 			Sleep(300)
 			checkScreen()
 			$result = _ImageSearchArea("images/X.png", 1, 3033, 120, 3324, 254, $x1, $y1, 100)
 			$x1 = $x1 - $monitorOneWidth
 			If $result == 1 Then
-				ControlClick("Clicker Heroes","", "", "Left",5,$x1,$y1)
+				ControlClick($handle,"", "", "Left",5,$x1,$y1)
 			EndIf
 
 
@@ -213,22 +380,26 @@ While 1
 
 
 			; Check for fish
-			checkScreen()
-			findFish()
-			Sleep(300)
+
+			If $bossFail < 24 Then
+				checkScreen()
+				findFish()
+				Sleep(300)
+			EndIf
+
 			If $pause = False Then
 
 				; Use activatables
 				checkScreen()
 				$golden = _ImageSearchArea("images/Golden.png", 1, $left, $top, $right, $bottom, $x1, $y1, 100)
 				If $golden == 1 Then
-					ControlSend("Clicker Heroes","", "", "1")
+					ControlSend($handle,"", "", "1")
 					Sleep(100)
-					ControlSend("Clicker Heroes","", "", "4")
+					ControlSend($handle,"", "", "4")
 					Sleep(100)
-					ControlSend("Clicker Heroes","", "", "8")
+					ControlSend($handle,"", "", "8")
 					Sleep(100)
-					ControlSend("Clicker Heroes","", "", "5")
+					ControlSend($handle,"", "", "5")
 					Sleep(100)
 
 				EndIf
@@ -236,13 +407,13 @@ While 1
 
 				$boss = _ImageSearchArea("images/Boss.png", 1, $left, $top, $right, $bottom, $x1, $y1, 120)
 				If $boss == 1 Then
-					ControlSend("Clicker Heroes","", "", "7")
+					ControlSend($handle,"", "", "7")
 					Sleep(100)
-					ControlSend("Clicker Heroes","", "", "3")
+					ControlSend($handle,"", "", "3")
 					Sleep(100)
-					ControlSend("Clicker Heroes","", "", "2")
+					ControlSend($handle,"", "", "2")
 					Sleep(100)
-					ControlSend("Clicker Heroes","", "", "1")
+					ControlSend($handle,"", "", "1")
 					Sleep(100)
 				EndIf
 
@@ -250,7 +421,7 @@ While 1
 				; Click loop
 				For $i = 0 To 1000 Step 1
 					If $pause = False Then
-						ControlClick("Clicker Heroes", "", "", "left", 1, 1173, 511)
+						ControlClick($handle, "", "", "left", 1, 1173, 511)
 						Sleep(1)
 					EndIf
 
