@@ -3,10 +3,10 @@
 *DONE* Add in logic to upgrade heroes at specific gold denominations.
 *DONE*    - Use mousescroll and image recognition. Maybe make a bounding box.
 
-Make ascension logic
+*DONE* Make ascension logic
 
 General additions:
-    *IN PROGRESS* Add generous bounding boxes to image checks instead of whole screen
+    *DONE* Add generous bounding boxes to image checks instead of whole screen
         - i.e. boss check
     *DONE* Make a "keep alive" function to refence instead of pasting it everywhere
     *DONE* Make a more fluid loop sequence and time out loops appropriately
